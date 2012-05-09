@@ -1,0 +1,260 @@
+diff -rupN dwm-6.0/README dwm6/README
+--- dwm-6.0/README	2011-12-19 07:02:46.000000000 -0800
++++ dwm6/README	2012-05-09 10:27:35.000000000 -0700
+@@ -49,3 +49,17 @@ Configuration
+ -------------
+ The configuration of dwm is done by creating a custom config.h
+ and (re)compiling the source code.
++
++
++Patch info
++----------
++This patch is is for dwm-6.0. It combines the attachaside and fibonacci
++patches with some cosmetic mods. Uses uxterm by default. Added 
++MOD+shift-o to spawn xterm, which I set to ignore colors in .Xdefaults. 
++Sometimes color settings on remote hosts are stupid and hard to read.
++
++XTerm*colorMode: false
++UXTerm*colorMode: true
++
++Enjoy.
++
+diff -rupN dwm-6.0/config.h dwm6/config.h
+--- dwm-6.0/config.h	1969-12-31 16:00:00.000000000 -0800
++++ dwm6/config.h	2012-05-09 11:21:25.000000000 -0700
+@@ -0,0 +1,111 @@
++/* See LICENSE file for copyright and license details. */
++
++/* appearance */
++static const char font[]            = "-*-terminus-medium-r-*-*-16-*-*-*-*-*-*-*";
++static const char normbordercolor[] = "#636363";
++static const char normbgcolor[]     = "#282828";
++static const char normfgcolor[]     = "#787878";
++static const char selbordercolor[]  = "#FFFF00";
++static const char selbgcolor[]      = "#282828";
++static const char selfgcolor[]      = "#FF0000";
++static const unsigned int borderpx  = 1;        /* border pixel of windows */
++static const unsigned int snap      = 32;       /* snap pixel */
++static const Bool showbar           = True;     /* False means no bar */
++static const Bool topbar            = False;    /* False means bottom bar */
++
++/* tagging */
++static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
++
++static const Rule rules[] = {
++	/* class      instance    title       tags mask     isfloating   monitor */
++	{ "Gimp",     NULL,       NULL,       0,            True,        -1 },
++	{ "Skype",    NULL,       NULL,       1 << 8,       True,        -1 },
++};
++
++/* layout(s) */
++static const float mfact      = 0.55; /* factor of master area size [0.05..0.95] */
++static const int nmaster      = 1;    /* number of clients in master area */
++static const Bool resizehints = False; /* True means respect size hints in tiled resizals */
++#include "fibonacci.c"
++static const Layout layouts[] = {
++	/* symbol     arrange function */
++        { "[@]",      spiral },  /* first entry is default */
++	{ "[]=",      tile }, 
++	{ "><>",      NULL },    /* no layout function means floating behavior */
++	{ "[M]",      monocle },
++       { "[\\]",      dwindle },
++};
++
++/* key definitions */
++#define MODKEY Mod1Mask
++#define TAGKEYS(KEY,TAG) \
++	{ MODKEY,                       KEY,      view,           {.ui = 1 << TAG} }, \
++	{ MODKEY|ControlMask,           KEY,      toggleview,     {.ui = 1 << TAG} }, \
++	{ MODKEY|ShiftMask,             KEY,      tag,            {.ui = 1 << TAG} }, \
++	{ MODKEY|ControlMask|ShiftMask, KEY,      toggletag,      {.ui = 1 << TAG} },
++
++/* helper for spawning shell commands in the pre dwm-5.0 fashion */
++#define SHCMD(cmd) { .v = (const char*[]){ "/bin/sh", "-c", cmd, NULL } }
++
++/* commands */
++static const char *dmenucmd[] = { "dmenu_run", "-fn", font, "-nb", normbgcolor, "-nf", normfgcolor, "-sb", selbgcolor, "-sf", selfgcolor, NULL };
++static const char *termcmd[]  = { "uxterm", NULL };
++static const char *termcmd2[]  = { "xterm", NULL };
++
++static Key keys[] = {
++	/* modifier                     key        function        argument */
++	{ MODKEY,                       XK_p,      spawn,          {.v = dmenucmd } },
++	{ MODKEY|ShiftMask,             XK_Return, spawn,          {.v = termcmd } },
++        { MODKEY|ShiftMask,             XK_o,      spawn,          {.v = termcmd2 } },
++	{ MODKEY,                       XK_b,      togglebar,      {0} },
++	{ MODKEY,                       XK_j,      focusstack,     {.i = +1 } },
++	{ MODKEY,                       XK_k,      focusstack,     {.i = -1 } },
++	{ MODKEY,                       XK_i,      incnmaster,     {.i = +1 } },
++	{ MODKEY,                       XK_d,      incnmaster,     {.i = -1 } },
++	{ MODKEY,                       XK_h,      setmfact,       {.f = -0.05} },
++	{ MODKEY,                       XK_l,      setmfact,       {.f = +0.05} },
++	{ MODKEY,                       XK_Return, zoom,           {0} },
++	{ MODKEY,                       XK_Tab,    view,           {0} },
++	{ MODKEY|ShiftMask,             XK_c,      killclient,     {0} },
++        { MODKEY,                       XK_s,      setlayout,      {.v = &layouts[0]} },
++	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
++	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
++	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[3]} },
++        { MODKEY,                       XK_d,      setlayout,      {.v = &layouts[4]} },
++	{ MODKEY,                       XK_space,  setlayout,      {0} },
++	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
++	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
++	{ MODKEY|ShiftMask,             XK_0,      tag,            {.ui = ~0 } },
++	{ MODKEY,                       XK_comma,  focusmon,       {.i = -1 } },
++	{ MODKEY,                       XK_period, focusmon,       {.i = +1 } },
++	{ MODKEY|ShiftMask,             XK_comma,  tagmon,         {.i = -1 } },
++	{ MODKEY|ShiftMask,             XK_period, tagmon,         {.i = +1 } },
++	TAGKEYS(                        XK_1,                      0)
++	TAGKEYS(                        XK_2,                      1)
++	TAGKEYS(                        XK_3,                      2)
++	TAGKEYS(                        XK_4,                      3)
++	TAGKEYS(                        XK_5,                      4)
++	TAGKEYS(                        XK_6,                      5)
++	TAGKEYS(                        XK_7,                      6)
++	TAGKEYS(                        XK_8,                      7)
++	TAGKEYS(                        XK_9,                      8)
++	{ MODKEY|ShiftMask,             XK_q,      quit,           {0} },
++};
++
++/* button definitions */
++/* click can be ClkLtSymbol, ClkStatusText, ClkWinTitle, ClkClientWin, or ClkRootWin */
++static Button buttons[] = {
++	/* click                event mask      button          function        argument */
++	{ ClkLtSymbol,          0,              Button1,        setlayout,      {0} },
++	{ ClkLtSymbol,          0,              Button3,        setlayout,      {.v = &layouts[2]} },
++	{ ClkWinTitle,          0,              Button2,        zoom,           {0} },
++	{ ClkStatusText,        0,              Button2,        spawn,          {.v = termcmd } },
++	{ ClkClientWin,         MODKEY,         Button1,        movemouse,      {0} },
++	{ ClkClientWin,         MODKEY,         Button2,        togglefloating, {0} },
++	{ ClkClientWin,         MODKEY,         Button3,        resizemouse,    {0} },
++	{ ClkTagBar,            0,              Button1,        view,           {0} },
++	{ ClkTagBar,            0,              Button3,        toggleview,     {0} },
++	{ ClkTagBar,            MODKEY,         Button1,        tag,            {0} },
++	{ ClkTagBar,            MODKEY,         Button3,        toggletag,      {0} },
++};
++
+diff -rupN dwm-6.0/config.mk dwm6/config.mk
+--- dwm-6.0/config.mk	2011-12-19 07:02:46.000000000 -0800
++++ dwm6/config.mk	2012-05-09 11:25:10.000000000 -0700
+@@ -7,8 +7,8 @@ VERSION = 6.0
+ PREFIX = /usr/local
+ MANPREFIX = ${PREFIX}/share/man
+ 
+-X11INC = /usr/X11R6/include
+-X11LIB = /usr/X11R6/lib
++X11INC = /usr/local/include
++X11LIB = /usr/local/lib
+ 
+ # Xinerama
+ XINERAMALIBS = -L${X11LIB} -lXinerama
+Files dwm-6.0/dwm and dwm6/dwm differ
+diff -rupN dwm-6.0/dwm.c dwm6/dwm.c
+--- dwm-6.0/dwm.c	2011-12-19 07:02:46.000000000 -0800
++++ dwm6/dwm.c	2012-05-09 11:36:26.000000000 -0700
+@@ -160,6 +160,7 @@ static Bool applysizehints(Client *c, in
+ static void arrange(Monitor *m);
+ static void arrangemon(Monitor *m);
+ static void attach(Client *c);
++static void attachaside(Client *c);
+ static void attachstack(Client *c);
+ static void buttonpress(XEvent *e);
+ static void checkotherwm(void);
+@@ -418,6 +419,17 @@ attach(Client *c) {
+ }
+ 
+ void
++attachaside(Client *c) {
++       Client *at = nexttiled(c->mon->clients);;
++       if(c->mon->sel == NULL || c->mon->sel->isfloating || !at) {
++               attach(c);
++               return;
++       }
++       c->next = at->next;
++       at->next = c;
++}
++
++void
+ attachstack(Client *c) {
+ 	c->snext = c->mon->stack;
+ 	c->mon->stack = c;
+@@ -1155,7 +1167,7 @@ manage(Window w, XWindowAttributes *wa) 
+ 		c->isfloating = c->oldstate = trans != None || c->isfixed;
+ 	if(c->isfloating)
+ 		XRaiseWindow(dpy, c->win);
+-	attach(c);
++	attachaside(c);
+ 	attachstack(c);
+ 	XMoveResizeWindow(dpy, c->win, c->x + 2 * sw, c->y, c->w, c->h); /* some windows require this */
+ 	setclientstate(c, NormalState);
+diff -rupN dwm-6.0/fibonacci.c dwm6/fibonacci.c
+--- dwm-6.0/fibonacci.c	1969-12-31 16:00:00.000000000 -0800
++++ dwm6/fibonacci.c	2012-05-09 11:12:20.000000000 -0700
+@@ -0,0 +1,67 @@
++void
++fibonacci(Monitor *mon, int s) {
++       unsigned int i, n, nx, ny, nw, nh;
++       Client *c;
++
++       for(n = 0, c = nexttiled(mon->clients); c; c = nexttiled(c->next), n++);
++       if(n == 0)
++               return;
++       
++       nx = mon->wx;
++       ny = 0;
++       nw = mon->ww;
++       nh = mon->wh;
++       
++       for(i = 0, c = nexttiled(mon->clients); c; c = nexttiled(c->next)) {
++               if((i % 2 && nh / 2 > 2 * c->bw)
++                  || (!(i % 2) && nw / 2 > 2 * c->bw)) {
++                       if(i < n - 1) {
++                               if(i % 2)
++                                       nh /= 2;
++                               else
++                                       nw /= 2;
++                               if((i % 4) == 2 && !s)
++                                       nx += nw;
++                               else if((i % 4) == 3 && !s)
++                                       ny += nh;
++                       }
++                       if((i % 4) == 0) {
++                               if(s)
++                                       ny += nh;
++                               else
++                                       ny -= nh;
++                       }
++                       else if((i % 4) == 1)
++                               nx += nw;
++                       else if((i % 4) == 2)
++                               ny += nh;
++                       else if((i % 4) == 3) {
++                               if(s)
++                                       nx += nw;
++                               else
++                                       nx -= nw;
++                       }
++                       if(i == 0)
++                       {
++                               if(n != 1)
++                                       nw = mon->ww * mon->mfact;
++                               ny = mon->wy;
++                       }
++                       else if(i == 1)
++                               nw = mon->ww - nw;
++                       i++;
++               }
++               resize(c, nx, ny, nw - 2 * c->bw, nh - 2 * c->bw, False);
++       }
++}
++
++void
++dwindle(Monitor *mon) {
++       fibonacci(mon, 1);
++}
++
++void
++spiral(Monitor *mon) {
++       fibonacci(mon, 0);
++}
++
