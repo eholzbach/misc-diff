@@ -54,8 +54,8 @@ diff -rupN dwm-6.0/config.h dwm6/config.h
 +#include "fibonacci.c"
 +static const Layout layouts[] = {
 +	/* symbol     arrange function */
-+        { "[@]",      spiral },  /* first entry is default */
-+	{ "[]=",      tile }, 
++       { "[]=",      tile },  /* first entry is default */
++        { "[@]",      spiral },
 +	{ "><>",      NULL },    /* no layout function means floating behavior */
 +	{ "[M]",      monocle },
 +       { "[\\]",      dwindle },
@@ -96,7 +96,7 @@ diff -rupN dwm-6.0/config.h dwm6/config.h
 +	{ MODKEY,                       XK_t,      setlayout,      {.v = &layouts[1]} },
 +	{ MODKEY,                       XK_f,      setlayout,      {.v = &layouts[2]} },
 +	{ MODKEY,                       XK_m,      setlayout,      {.v = &layouts[3]} },
-+        { MODKEY,                       XK_d,      setlayout,      {.v = &layouts[4]} },
++        { MODKEY,                       XK_w,      setlayout,      {.v = &layouts[4]} },
 +	{ MODKEY,                       XK_space,  setlayout,      {0} },
 +	{ MODKEY|ShiftMask,             XK_space,  togglefloating, {0} },
 +	{ MODKEY,                       XK_0,      view,           {.ui = ~0 } },
